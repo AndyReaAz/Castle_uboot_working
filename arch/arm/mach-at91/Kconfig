@@ -171,6 +171,16 @@ config TARGET_SAMA5D2_XPLAINED
 	select SAMA5D2
 	select SUPPORT_SPL
 
+config TARGET_SAMA5D27_NEXTGEN
+	bool "SAMA5D27 NextGen board"
+	select BOARD_LATE_INIT
+	select CPU_V7A
+	select SUPPORT_SPL
+	select SAMA5D2
+	select ATMEL_SFR
+	help
+		Castle NextGen boards
+
 config TARGET_SAMA5D27_SOM1_EK
 	bool "SAMA5D27 SOM1 EK board"
 	select SAMA5D2
@@ -344,6 +354,7 @@ config ATMEL_LEGACY
 config AT91_WANTS_COMMON_PHY
 	bool
 
+source "board/atmel/sama5d27_nextgen/Kconfig"
 source "board/atmel/at91sam9260ek/Kconfig"
 source "board/atmel/at91sam9261ek/Kconfig"
 source "board/atmel/at91sam9263ek/Kconfig"

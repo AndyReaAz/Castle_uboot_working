@@ -59,6 +59,7 @@
 
 	ahb {
 		apb {
+		/*
 			qspi1: spi@f0024000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_qspi1_sck_cs_default &pinctrl_qspi1_dat_default>;
@@ -74,6 +75,7 @@
 					bootph-all;
 				};
 			};
+			*/
 
 			macb0: ethernet@f8008000 {
 				pinctrl-names = "default";
