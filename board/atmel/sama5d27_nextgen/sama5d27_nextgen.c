@@ -23,7 +23,6 @@
 #include <dm/device-internal.h>
 #include <env.h>
 
-extern void at91_pda_detect(void);
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -51,7 +50,6 @@ int board_late_init(void)
 #ifdef CONFIG_VIDEO
 	//at91_video_show_board_info();
 #endif
-	at91_pda_detect();
 	return 0;
 }
 #endif
