@@ -22,10 +22,8 @@
 #include <dm/device.h>
 #include <dm/device-internal.h>
 #include <env.h>
-#include <linux/delay.h>
 
 #define NEXTGEN_SCKC_OSCSEL		BIT(3)
-#define NEXTGEN_SLOW_XTAL_MARGIN_MS	500
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -114,22 +112,25 @@ void board_preboot_os(void)
 		return;
 
 	/*
-	 * SAMA5D2 has no OSC32EN control here: the 32.768 kHz crystal
-	 * oscillator starts from the VDDBU domain.  AT91Bootstrap's original
-	 * path waited the full 1.2 s maximum before selecting it.  In the
-	 * deferred profile that startup overlaps SD loading and U-Boot work;
-	 * retain a conservative additional margin for the first cold-boot test.
+	 * arch_preboot_os() runs before this hook and disables the AT91 PIT,
+	 * so timer-based mdelay()/udelay() must not be used here.
+	 *
+	 * In the deferred profile the 32.768 kHz crystal has already been
+	 * running from the VDDBU domain throughout AT91Bootstrap and U-Boot.
+	 * Measured cold-boot time to this hook exceeds the 1.2 s datasheet
+	 * maximum crystal startup time.
 	 */
-	mdelay(NEXTGEN_SLOW_XTAL_MARGIN_MS);
-
 	sckcr |= NEXTGEN_SCKC_OSCSEL;
 	writel(sckcr, (void *)ATMEL_BASE_SCKC);
 
 	/*
-	 * Match the Linux/AT91 slow-clock driver: allow five 32.768 kHz
-	 * cycles for internal resynchronisation after changing OSCSEL.
+	 * Allow comfortably more than the required five slow-clock cycles
+	 * (~153 us) for internal resynchronisation without depending on PIT.
+	 * 250k Cortex-A5 loop iterations are deliberately conservative here
+	 * and still only cost a few milliseconds at 498 MHz.
 	 */
-	udelay(153);
+	for (volatile unsigned int i = 0; i < 250000; i++)
+		__asm__ volatile("nop");
 }
 
 
