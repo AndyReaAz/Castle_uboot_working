@@ -1,0 +1,86 @@
+# NextGen U-Boot features deliberately disabled in the MMC-only fast-boot build
+#
+# Current flow:
+#   AT91Bootstrap -> U-Boot from SD/MMC
+#   U-Boot -> nextgen.dtb + zImage from FAT partition
+#   Linux -> ext4 rootfs on SD/MMC
+#
+# Revisit these when moving to the production NOR / NAND / MTD boot layout.
+
+CONFIG_NO_NET=y
+# Networking disabled completely. GMAC is not used in this product.
+
+CONFIG_MACB
+# SAMA5D2 GMAC driver.
+
+CONFIG_USB
+CONFIG_USB_GADGET
+CONFIG_AT91_UTMI
+# No U-Boot USB host/gadget path is required for the MMC boot stage.
+
+CONFIG_FIT
+# Current boot path loads raw zImage + DTB with bootz.
+
+CONFIG_OF_LIBFDT_OVERLAY
+# No U-Boot DT overlay processing is used.
+
+CONFIG_SPI_BOOT
+# Current U-Boot is loaded from MMC by AT91Bootstrap.
+
+CONFIG_MTD
+CONFIG_DM_MTD
+CONFIG_MTD_SPI_NAND
+CONFIG_CMD_MTD
+CONFIG_CMD_MTD_NAND_READ_TEST
+CONFIG_CMD_MTDPARTS
+CONFIG_CMD_UBI
+# NAND/UBI/MTD support is deferred until the production flash layout is added.
+
+CONFIG_ATMEL_QSPI
+# QSPI controller is not needed in the MMC-only stage.
+
+CONFIG_DM_SPI_FLASH
+CONFIG_SPI_FLASH_SFDP_SUPPORT
+CONFIG_SPI_FLASH_ATMEL
+CONFIG_SPI_FLASH_MACRONIX
+CONFIG_SPI_FLASH_SPANSION
+CONFIG_SPI_FLASH_STMICRO
+CONFIG_SPI_FLASH_SST
+CONFIG_SPI_FLASH_WINBOND
+CONFIG_SPI_FLASH_MTD
+# SPI NOR support is deferred until the production NOR layout is added.
+
+CONFIG_CMD_SPI
+# SPI command shell support is not needed. Generic SPI remains enabled because
+# U-Boot still initialises the ST7789 panel.
+
+CONFIG_CMD_EXT4
+# U-Boot does not access the root filesystem; Linux mounts it itself.
+
+CONFIG_CMD_HASH
+CONFIG_HASH_VERIFY
+# No image hashing is used in the current raw zImage boot path.
+
+CONFIG_PARTITION_UUIDS
+# Current FAT boot path uses mmc 0:1 directly.
+
+CONFIG_CMD_NVEDIT_INFO
+CONFIG_CMD_BIND
+CONFIG_GETOPT
+CONFIG_TOOLS_MKEFICAPSULE
+CONFIG_FAT_RENAME
+# Unused command/tool support removed from the fast build.
+
+CONFIG_LAST_STAGE_INIT
+CONFIG_MISC_INIT_R
+# No NextGen late-stage/event setup is required by this boot path.
+
+# Deliberately retained:
+# CONFIG_SPI / CONFIG_DM_SPI / Atmel SPI controller
+#   Required to initialise the ST7789 panel before Linux.
+# CONFIG_VIDEO / CONFIG_VIDEO_ST7789_SPI / CONFIG_ATMEL_HLCD
+#   Required for the early display hand-off.
+# CONFIG_MMC_SDHCI / CONFIG_MMC_SDHCI_ATMEL / CONFIG_CMD_FAT
+#   Required for loading nextgen.dtb and zImage from the FAT boot partition.
+# CONFIG_ENV_IS_IN_FAT and saveenv support
+#   Required for persistent product/manufacturer environment state.
