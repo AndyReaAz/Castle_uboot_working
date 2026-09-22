@@ -22,6 +22,11 @@
 #include <dm/device.h>
 #include <dm/device-internal.h>
 #include <env.h>
+#include <linux/delay.h>
+
+#define NEXTGEN_SCKC_OSCSEL		BIT(3)
+#define NEXTGEN_PMC_SR_OSCSELS		BIT(7)
+#define NEXTGEN_SLOW_XTAL_MARGIN_MS	250
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -95,6 +100,38 @@ int dram_init_banksize(void)
 int dram_init(void)
 {
 	return fdtdec_setup_mem_size_base();
+}
+
+/*
+ * AT91Bootstrap may deliberately defer selection of the 32.768 kHz crystal
+ * so its startup time overlaps useful U-Boot work.  OSCSEL is in the VDDBU
+ * backed-up domain, so warm boots normally arrive here already on XTAL.
+ */
+void board_preboot_os(void)
+{
+	struct at91_pmc *pmc = (struct at91_pmc *)ATMEL_BASE_PMC;
+	u32 sckcr = readl((void *)ATMEL_BASE_SCKC);
+	unsigned int timeout = 2000;
+
+	if (sckcr & NEXTGEN_SCKC_OSCSEL)
+		return;
+
+	/*
+	 * Current measured SD bootstrap + U-Boot work already consumes around
+	 * the 1.2 s crystal-startup maximum.  Keep a small extra cold-boot
+	 * margin here so future minor boot-time reductions remain safe.
+	 */
+	mdelay(NEXTGEN_SLOW_XTAL_MARGIN_MS);
+
+	sckcr |= NEXTGEN_SCKC_OSCSEL;
+	writel(sckcr, (void *)ATMEL_BASE_SCKC);
+
+	/* PMC_SR.OSCSELS reports completion of the slow-clock source switch. */
+	while (!(readl(&pmc->sr) & NEXTGEN_PMC_SR_OSCSELS) && timeout--)
+		udelay(1);
+
+	if (!timeout)
+		printf("Warning: slow clock switch to 32.768 kHz crystal timed out\n");
 }
 
 #define MAC24AA_MAC_OFFSET	0xfa
