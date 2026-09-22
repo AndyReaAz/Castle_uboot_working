@@ -99,7 +99,7 @@
 				qspiflash@0 {
 					compatible = "spi-nand";
 					reg = <0>;
-					spi-max-frequency = <50000000>;
+					spi-max-frequency = <90000000>;
 					spi-rx-bus-width = <4>;
 					spi-tx-bus-width = <1>;
 					/delete-property/ bootph-all;
@@ -120,7 +120,7 @@
 						
 						rootfs@880000 {
 							label = "rootfs";
-							reg = <0x00880000 0x1f780000>;
+							reg = <0x00880000 0x08000000>; /* 128 MiB; remainder intentionally spare */
 						};
 					};
 				};
@@ -191,6 +191,12 @@
 							reg = <0x8000 0x138000>;
 						};
 						partition@140000 {
+							/*
+							 * 128 KiB reserved for the redundant U-Boot environment:
+							 *   0x140000-0x14ffff primary 64 KiB erase sector
+							 *   0x150000-0x15ffff redundant 64 KiB erase sector
+							 * Each copy carries a 16 KiB environment payload.
+							 */
 							label = "uboot-env";
 							reg = <0x140000 0x020000>;
 						};
