@@ -1,1 +1,2 @@
-make -j$(nproc) ARCH=arm CROSS_COMPILE=arm-linux-gnueabihf- 
+#!/bin/sh
+exec "$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)/build-fast.sh" build "$@"
