@@ -73,7 +73,7 @@
 			atmel,vbus-gpio = <&pioA 42 0>;
 			pinctrl-names = "default";
 			pinctrl-0 = <&pinctrl_usb_default>;
-			status = "okay";
+			status = "disabled";
 		};
 		
 		usb2: ehci@500000 {
@@ -98,7 +98,7 @@
 			qspi1: spi@f0024000 {
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_qspi1_default>;
-				status = "okay";
+				status = "disabled";
 				bootph-all;
 				qspiflash@0 {
 					compatible = "spi-nand";
