@@ -12,7 +12,7 @@
 #include "at91-sama5_common.h"
 
 /* Supported runtime console rates for NextGen. */
-#define CFG_SYS_BAUDRATE_TABLE { 115200, 230400, 460800, 921600 }
+#define CFG_SYS_BAUDRATE_TABLE { 115200, 230400, 460800, 576000, 921600 }
 
 #undef CFG_SYS_AT91_MAIN_CLOCK
 #define CFG_SYS_AT91_MAIN_CLOCK      12000000 /* from 12 MHz crystal */
