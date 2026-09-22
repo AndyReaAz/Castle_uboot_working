@@ -103,7 +103,7 @@
 				qspiflash@0 {
 					compatible = "spi-nand";
 					reg = <0>;
-					spi-max-frequency = <50000000>;
+					spi-max-frequency = <90000000>;
 					spi-rx-bus-width = <4>;
 					spi-tx-bus-width = <1>;
 					partitions {
@@ -171,14 +171,14 @@
 				pinctrl-0 = <&pinctrl_spi1_default>;
 				clocks = <&spi1_clk>;
 				clock-names = "spi_clk";
-				spi-max-frequency = <50000000>;
+				spi-max-frequency = <90000000>;
 				cs-gpios = <&pioA 68 GPIO_ACTIVE_HIGH>, <&pioA 69 GPIO_ACTIVE_HIGH>;
 				
 				flash@0 {
 					compatible = "jedec,spi-nor";
 					reg = <0>;
 					bootph-all;
-					spi-max-frequency = <50000000>;
+					spi-max-frequency = <90000000>;
 					
 					partitions {
 						compatible = "fixed-partitions";
@@ -230,6 +230,7 @@
 					<PIN_PC5__SPI1_NPCS1>,
 					<PIN_PC6__SPI1_NPCS2>;*/
 					bias-disable;
+					atmel,drive-strength = <3>;
 					bootph-all;
 				};
 				pinctrl_qspi1_default: qspi1_default {
@@ -240,6 +241,7 @@
 					<PIN_PB9__QSPI1_IO2>,
 					<PIN_PB10__QSPI1_IO3>;
 					bias-disable;
+					atmel,drive-strength = <3>;
 					bootph-all;
 				};
 				
