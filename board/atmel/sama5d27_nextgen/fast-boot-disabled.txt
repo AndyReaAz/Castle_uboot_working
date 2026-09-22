@@ -117,6 +117,10 @@ CONFIG_GETOPT
 CONFIG_MISC_INIT_R
 # NextGen misc_init_r() was only carrying the disabled I2C-EEPROM MAC path.
 
+CONFIG_LAST_STAGE_INIT
+# No current EVT_LAST_STAGE_INIT consumer is required. BOARD_LATE_INIT remains
+# enabled separately and still performs the ST7789 panel probe.
+
 # ---------------------------------------------------------------------------
 # Intentionally retained on the MMC fast path
 # ---------------------------------------------------------------------------
