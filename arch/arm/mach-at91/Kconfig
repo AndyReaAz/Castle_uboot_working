@@ -173,6 +173,7 @@ config TARGET_SAMA5D2_XPLAINED
 
 config TARGET_SAMA5D27_NEXTGEN
 	bool "SAMA5D27 NextGen board"
+	select BOARD_LATE_INIT
 	select CPU_V7A
 	select SUPPORT_SPL
 	select SAMA5D2
@@ -183,6 +184,7 @@ config TARGET_SAMA5D27_NEXTGEN
 config TARGET_SAMA5D27_SOM1_EK
 	bool "SAMA5D27 SOM1 EK board"
 	select SAMA5D2
+	select BOARD_LATE_INIT
 	select CPU_V7A
 	select SUPPORT_SPL
 	select ATMEL_SFR

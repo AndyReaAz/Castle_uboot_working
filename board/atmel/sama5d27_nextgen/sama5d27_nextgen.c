@@ -16,8 +16,45 @@
 #include <asm/arch/clk.h>
 #include <asm/arch/gpio.h>
 #include <asm/arch/sama5d2.h>
+#include <dm.h>
+#include <dm/uclass.h>
+#include <spi.h>
+#include <dm/device.h>
+#include <dm/device-internal.h>
+#include <env.h>
+
+extern void at91_pda_detect(void);
 
 DECLARE_GLOBAL_DATA_PTR;
+
+#ifdef CONFIG_BOARD_LATE_INIT
+int board_late_init(void)
+{
+	struct udevice *bus, *child;
+	int ret;
+
+	ret = uclass_get_device_by_seq(UCLASS_SPI, 1, &bus);
+	if (ret) {
+		printf("SPI bus 1 not found: %d\n", ret);
+		return 0;
+	}
+
+	device_foreach_child(child, bus) {
+		if (ofnode_device_is_compatible(dev_ofnode(child),
+						"sitronix,st7789v-rgb-init")) {
+			ret = device_probe(child);
+			// printf("ST7789 probe ret=%d\n", ret);
+			break;
+		}
+	}
+
+#ifdef CONFIG_VIDEO
+	//at91_video_show_board_info();
+#endif
+	at91_pda_detect();
+	return 0;
+}
+#endif
 
 #ifdef CONFIG_DEBUG_UART_BOARD_INIT
 static void board_uart1_hw_init(void)
@@ -34,14 +71,20 @@ void board_debug_uart_init(void)
 }
 #endif
 
+
+
 int board_init(void)
 {
 	/* address of boot parameters */
 	gd->bd->bi_boot_params = gd->bd->bi_dram[0].start + 0x100;
 
+
 #ifdef CONFIG_CMD_USB
 	board_usb_hw_init();
 #endif
+	const char* cp = env_get("ethaddr");
+	if (cp)
+		eth_env_set_enetaddr("ethaddr", cp);
 	return 0;
 }
 
@@ -54,6 +97,18 @@ int dram_init(void)
 {
 	return fdtdec_setup_mem_size_base();
 }
+
+#define MAC24AA_MAC_OFFSET	0xfa
+
+#ifdef CONFIG_MISC_INIT_R
+int misc_init_r(void)
+{
+#ifdef CONFIG_I2C_EEPROM
+	at91_set_ethaddr(MAC24AA_MAC_OFFSET);
+#endif
+	return 0;
+}
+#endif
 
 /* SPL */
 #ifdef CONFIG_XPL_BUILD
@@ -130,6 +185,11 @@ void at91_pmc_init(void)
 {
 	u32 tmp;
 
+	/*
+	 * while coming from the ROM code, we run on PLLA @ 492 MHz / 164 MHz
+	 * so we need to slow down and configure MCKR accordingly.
+	 * This is why we have a special flavor of the switching function.
+	 */
 	tmp = AT91_PMC_MCKR_PLLADIV_2 |
 	      AT91_PMC_MCKR_MDIV_3 |
 	      AT91_PMC_MCKR_CSS_MAIN;
