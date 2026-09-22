@@ -1,3 +1,8 @@
+# MMC-only development configuration:
+# AT91Bootstrap loads U-Boot from SD/MMC; U-Boot then loads only the DTB and
+# zImage from the FAT boot partition.  NOR/QSPI/NAND/MTD support is deliberately
+# deferred to the later production-flash configuration.  Generic SPI/video stay
+# enabled only because U-Boot initialises the ST7789 panel before Linux starts.
 CONFIG_ARM=y
 CONFIG_SKIP_LOWLEVEL_INIT=y
 CONFIG_ARCH_CPU_INIT=y
@@ -71,7 +76,7 @@ CONFIG_CMD_BOOTZ=y
 # CONFIG_BOOTM_RTEMS is not set
 # CONFIG_BOOTM_VXWORKS is not set
 # CONFIG_CMD_W1 is not set
-CONFIG_CMD_MMC=y
+# CONFIG_CMD_MMC is not set
 # CONFIG_CMD_NET is not set
 # MMC-only fast-boot profile: USB, networking and flash/MTD are deferred.
 CONFIG_NO_NET=y
