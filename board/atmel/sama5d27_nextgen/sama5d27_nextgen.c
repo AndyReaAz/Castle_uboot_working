@@ -21,7 +21,6 @@
 #include <spi.h>
 #include <dm/device.h>
 #include <dm/device-internal.h>
-#include <env.h>
 
 
 DECLARE_GLOBAL_DATA_PTR;
@@ -80,9 +79,6 @@ int board_init(void)
 #ifdef CONFIG_CMD_USB
 	board_usb_hw_init();
 #endif
-	const char* cp = env_get("ethaddr");
-	if (cp)
-		eth_env_set_enetaddr("ethaddr", cp);
 	return 0;
 }
 
