@@ -70,12 +70,18 @@ case "${1:-build}" in
 esac
 
 if [ -f "$OUT/u-boot.bin" ]; then
+    [ -x "$OUT/tools/mkenvimage" ] || {
+        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
+        exit 1
+    }
+
     echo
     echo "U-Boot build complete"
     echo "  ARCH          = $ARCH"
     echo "  CROSS_COMPILE = $CROSS_COMPILE"
     echo "  OUTPUT        = $OUT/u-boot.bin"
-    ls -lh "$OUT/u-boot.bin"
+    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
+    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
 
     if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
         echo
