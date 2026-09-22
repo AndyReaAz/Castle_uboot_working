@@ -62,8 +62,12 @@ static void st7789_reset(struct udevice *dev)
 	if (!dm_gpio_is_valid(&priv->reset))
 		return;
 
-	dm_gpio_set_value(&priv->reset, 0);
-	mdelay(20);
+	/*
+	 * reset-gpios is active-low, so logical 1 asserts RESX.
+	 * The ST7789V requires a reset pulse >10 us.  Keep a generous
+	 * 20 ms pulse, then the full 120 ms reset-cancel interval so this
+	 * is also safe on a warm reboot where the panel was in Sleep Out.
+	 */
 	dm_gpio_set_value(&priv->reset, 1);
 	mdelay(20);
 	dm_gpio_set_value(&priv->reset, 0);
@@ -77,11 +81,11 @@ static int st7789_rgb_init(struct udevice *dev)
 
 	st7789_reset(dev);
 
-	ret = st7789_cmd(dev, 0x01); /* SWRESET */
-	if (ret)
-		return ret;
-	mdelay(120);
-
+	/*
+	 * Hardware reset already restores the controller defaults and leaves
+	 * the panel in Sleep In.  A second SWRESET is redundant here and, when
+	 * issued in Sleep In, requires another 120 ms before SLPOUT.
+	 */
 	d[0] = 0x60;
 	d[1] = 0x04;
 	d[2] = 0x16;
@@ -107,7 +111,11 @@ static int st7789_rgb_init(struct udevice *dev)
 	ret = st7789_cmd(dev, 0x11); /* SLPOUT */
 	if (ret)
 		return ret;
-	mdelay(120);
+	/*
+	 * ST7789V requires 5 ms before issuing further commands after SLPOUT.
+	 * Use 10 ms margin; the 120 ms restriction applies before SLPIN.
+	 */
+	mdelay(10);
 
 	d[0] = 0x00;
 	ret = st7789_cmd_data(dev, 0x36, d, 1); /* MADCTL */
@@ -117,7 +125,8 @@ static int st7789_rgb_init(struct udevice *dev)
 	ret = st7789_cmd(dev, 0x29); /* DISPON */
 	if (ret)
 		return ret;
-	mdelay(120);
+	/* No mandatory post-DISPON delay in the datasheet; keep a small margin. */
+	mdelay(10);
 
 	return 0;
 }
