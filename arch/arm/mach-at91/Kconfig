@@ -173,7 +173,6 @@ config TARGET_SAMA5D2_XPLAINED
 
 config TARGET_SAMA5D27_NEXTGEN
 	bool "SAMA5D27 NextGen board"
-	select BOARD_LATE_INIT
 	select CPU_V7A
 	select SUPPORT_SPL
 	select SAMA5D2
