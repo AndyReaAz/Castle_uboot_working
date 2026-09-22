@@ -227,6 +227,7 @@
 					<PIN_PC5__SPI1_NPCS1>,
 					<PIN_PC6__SPI1_NPCS2>;*/
 					bias-disable;
+					atmel,drive-strength = <3>;
 					bootph-all;
 				};
 				pinctrl_qspi1_default: qspi1_default {
@@ -237,6 +238,7 @@
 					<PIN_PB9__QSPI1_IO2>,
 					<PIN_PB10__QSPI1_IO3>;
 					bias-disable;
+					atmel,drive-strength = <3>;
 				};
 				
 				pinctrl_lcd_base: pinctrl_lcd_base {
