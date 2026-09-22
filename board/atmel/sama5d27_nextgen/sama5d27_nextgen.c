@@ -82,9 +82,11 @@ int board_init(void)
 #ifdef CONFIG_CMD_USB
 	board_usb_hw_init();
 #endif
-	const char* cp = env_get("ethaddr");
+#ifdef CONFIG_NET
+	const char *cp = env_get("ethaddr");
 	if (cp)
 		eth_env_set_enetaddr("ethaddr", cp);
+#endif
 	return 0;
 }
 
