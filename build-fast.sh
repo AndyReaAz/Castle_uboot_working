@@ -30,8 +30,43 @@ export CROSS_COMPILE
 
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 
+check_nextgen_flash_layout()
+{
+    DTS="$ROOT/arch/arm/dts/sama5d27_nextgen.dts"
+    ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen.env"
+
+    # Ratified 2 MiB NOR map shared with AT91Bootstrap and Linux.
+    grep -q 'reg = <0x0 0x8000>;' "$DTS" ||
+        { echo "error: NextGen AT91Bootstrap NOR partition changed" >&2; exit 1; }
+    grep -q 'reg = <0x8000 0x138000>;' "$DTS" ||
+        { echo "error: NextGen U-Boot NOR partition changed" >&2; exit 1; }
+    grep -q 'reg = <0x140000 0x020000>;' "$DTS" ||
+        { echo "error: NextGen redundant environment NOR partition changed" >&2; exit 1; }
+
+    # First flash-root profile intentionally limits UBI scanning to 128 MiB.
+    grep -q 'reg = <0x00880000 0x08000000>;' "$DTS" ||
+        { echo "error: NextGen NAND rootfs partition is not 128 MiB" >&2; exit 1; }
+
+    # The QSPI request deliberately selects the ~83 MHz SAMA5D2 divider step.
+    grep -q 'spi-max-frequency = <90000000>;' "$DTS" ||
+        { echo "error: NextGen QSPI NAND frequency changed" >&2; exit 1; }
+
+    # Application splash/theme state must not leak back into the boot env.
+    grep -q '^manufacturer=' "$ENV_TEXT" ||
+        { echo "error: missing manufacturer factory identity" >&2; exit 1; }
+    grep -q '^modeltype=' "$ENV_TEXT" ||
+        { echo "error: missing modeltype factory identity" >&2; exit 1; }
+    grep -q '^model=' "$ENV_TEXT" ||
+        { echo "error: missing model factory identity" >&2; exit 1; }
+    if grep -q '^product=' "$ENV_TEXT" || grep -q 'nextgen.product=' "$ENV_TEXT"; then
+        echo "error: obsolete product/theme state remains in NextGen U-Boot environment" >&2
+        exit 1
+    fi
+}
+
 configure()
 {
+    check_nextgen_flash_layout
     make -C "$ROOT" O="$OUT"         ARCH="$ARCH"         CROSS_COMPILE="$CROSS_COMPILE"         "$DEFCONFIG"
 }
 
@@ -72,6 +107,12 @@ esac
 if [ -f "$OUT/u-boot.bin" ]; then
     [ -x "$OUT/tools/mkenvimage" ] || {
         echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
+        exit 1
+    }
+
+    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
+    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
+        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
         exit 1
     }
 
