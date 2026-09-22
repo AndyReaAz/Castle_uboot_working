@@ -55,12 +55,12 @@ static int st7789_cmd_data(struct udevice *dev, u8 cmd, const u8 *data,
 	return st7789_write(dev, true, data, len);
 }
 
-static bool st7789_reset(struct udevice *dev)
+static void st7789_reset(struct udevice *dev)
 {
 	struct st7789_priv *priv = dev_get_priv(dev);
 
 	if (!dm_gpio_is_valid(&priv->reset))
-		return false;
+		return;
 
 	dm_gpio_set_value(&priv->reset, 0);
 	mdelay(20);
@@ -68,8 +68,6 @@ static bool st7789_reset(struct udevice *dev)
 	mdelay(20);
 	dm_gpio_set_value(&priv->reset, 0);
 	mdelay(120);
-
-	return true;
 }
 
 static int st7789_rgb_init(struct udevice *dev)
@@ -77,18 +75,12 @@ static int st7789_rgb_init(struct udevice *dev)
 	u8 d[3];
 	int ret;
 
-	/*
-	 * Hardware reset and SWRESET perform the same controller reset.
-	 * The NextGen board has a dedicated reset GPIO, so do not spend
-	 * another 120 ms on a redundant software reset. Keep SWRESET as
-	 * the fallback for boards without a usable reset line.
-	 */
-	if (!st7789_reset(dev)) {
-		ret = st7789_cmd(dev, ST7789_SWRESET);
-		if (ret)
-			return ret;
-		mdelay(120);
-	}
+	st7789_reset(dev);
+
+	ret = st7789_cmd(dev, 0x01); /* SWRESET */
+	if (ret)
+		return ret;
+	mdelay(120);
 
 	d[0] = 0x60;
 	d[1] = 0x04;
