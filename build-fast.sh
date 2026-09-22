@@ -32,6 +32,15 @@ CROSS_COMPILE="$(find_cross)" || {
 }
 export CROSS_COMPILE
 
+# Buildroot's toolchain wrapper only routes through ccache when this is set.
+# Keep U-Boot on the same cache by default as the Buildroot toolchain.
+BR2_USE_CCACHE="${BR2_USE_CCACHE:-1}"
+export BR2_USE_CCACHE
+if [ "$BR2_USE_CCACHE" = "1" ]; then
+    CCACHE_DIR="${CCACHE_DIR:-$HOME/.buildroot-ccache}"
+    export CCACHE_DIR
+fi
+
 JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 
 case "${1:-build}" in
@@ -42,7 +51,7 @@ case "${1:-build}" in
         make -C "$ROOT" O="$OUT" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" "$DEFCONFIG"
         ;;
     menuconfig)
-        [ -f "$OUT/.config" ] ||             make -C "$ROOT" O="$OUT" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" "$DEFCONFIG"
+        make -C "$ROOT" O="$OUT" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" "$DEFCONFIG"
         make -C "$ROOT" O="$OUT" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" menuconfig
         ;;
     rebuild)
@@ -51,7 +60,9 @@ case "${1:-build}" in
         make -C "$ROOT" O="$OUT" -j"$JOBS" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE"
         ;;
     build)
-        [ -f "$OUT/.config" ] ||             make -C "$ROOT" O="$OUT" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" "$DEFCONFIG"
+        # Always refresh from the branch defconfig so a stale build-fast/.config
+        # cannot silently miss required options added by later commits.
+        make -C "$ROOT" O="$OUT" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE" "$DEFCONFIG"
         make -C "$ROOT" O="$OUT" -j"$JOBS" ARCH="$ARCH" CROSS_COMPILE="$CROSS_COMPILE"
         ;;
     *)
@@ -66,5 +77,16 @@ if [ -f "$OUT/u-boot.bin" ]; then
     echo "  ARCH          = $ARCH"
     echo "  CROSS_COMPILE = $CROSS_COMPILE"
     echo "  OUTPUT        = $OUT/u-boot.bin"
+    echo "  CCACHE        = $BR2_USE_CCACHE"
+    if [ "$BR2_USE_CCACHE" = "1" ]; then
+        echo "  CCACHE_DIR    = $CCACHE_DIR"
+    fi
     ls -lh "$OUT/u-boot.bin"
+
+    if [ "$BR2_USE_CCACHE" = "1" ]; then
+        host_bin="$(dirname "${CROSS_COMPILE}gcc")"
+        if [ -x "$host_bin/ccache" ]; then
+            CCACHE_DIR="$CCACHE_DIR" "$host_bin/ccache" -s | sed -n '1,12p'
+        fi
+    fi
 fi
