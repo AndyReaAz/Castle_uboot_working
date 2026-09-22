@@ -30,9 +30,9 @@ DECLARE_GLOBAL_DATA_PTR;
 #ifdef CONFIG_BOARD_LATE_INIT
 int board_late_init(void)
 {
-#if defined(CONFIG_VIDEO_ST7789_SPI)
 	struct udevice *bus, *child;
 	int ret;
+
 	ret = uclass_get_device_by_seq(UCLASS_SPI, 1, &bus);
 	if (ret) {
 		printf("SPI bus 1 not found: %d\n", ret);
@@ -43,11 +43,14 @@ int board_late_init(void)
 		if (ofnode_device_is_compatible(dev_ofnode(child),
 						"sitronix,st7789v-rgb-init")) {
 			ret = device_probe(child);
+			// printf("ST7789 probe ret=%d\n", ret);
 			break;
 		}
 	}
-#endif
 
+#ifdef CONFIG_VIDEO
+	//at91_video_show_board_info();
+#endif
 	at91_pda_detect();
 	return 0;
 }
