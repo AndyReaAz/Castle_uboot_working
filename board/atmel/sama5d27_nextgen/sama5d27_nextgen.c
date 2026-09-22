@@ -25,8 +25,7 @@
 #include <linux/delay.h>
 
 #define NEXTGEN_SCKC_OSCSEL		BIT(3)
-#define NEXTGEN_PMC_SR_OSCSELS		BIT(7)
-#define NEXTGEN_SLOW_XTAL_MARGIN_MS	250
+#define NEXTGEN_SLOW_XTAL_MARGIN_MS	500
 
 DECLARE_GLOBAL_DATA_PTR;
 
@@ -109,30 +108,30 @@ int dram_init(void)
  */
 void board_preboot_os(void)
 {
-	struct at91_pmc *pmc = (struct at91_pmc *)ATMEL_BASE_PMC;
 	u32 sckcr = readl((void *)ATMEL_BASE_SCKC);
-	unsigned int timeout = 2000;
 
 	if (sckcr & NEXTGEN_SCKC_OSCSEL)
 		return;
 
 	/*
-	 * Current measured SD bootstrap + U-Boot work already consumes around
-	 * the 1.2 s crystal-startup maximum.  Keep a small extra cold-boot
-	 * margin here so future minor boot-time reductions remain safe.
+	 * SAMA5D2 has no OSC32EN control here: the 32.768 kHz crystal
+	 * oscillator starts from the VDDBU domain.  AT91Bootstrap's original
+	 * path waited the full 1.2 s maximum before selecting it.  In the
+	 * deferred profile that startup overlaps SD loading and U-Boot work;
+	 * retain a conservative additional margin for the first cold-boot test.
 	 */
 	mdelay(NEXTGEN_SLOW_XTAL_MARGIN_MS);
 
 	sckcr |= NEXTGEN_SCKC_OSCSEL;
 	writel(sckcr, (void *)ATMEL_BASE_SCKC);
 
-	/* PMC_SR.OSCSELS reports completion of the slow-clock source switch. */
-	while (!(readl(&pmc->sr) & NEXTGEN_PMC_SR_OSCSELS) && timeout--)
-		udelay(1);
-
-	if (!timeout)
-		printf("Warning: slow clock switch to 32.768 kHz crystal timed out\n");
+	/*
+	 * Match the Linux/AT91 slow-clock driver: allow five 32.768 kHz
+	 * cycles for internal resynchronisation after changing OSCSEL.
+	 */
+	udelay(153);
 }
+
 
 #define MAC24AA_MAC_OFFSET	0xfa
 
