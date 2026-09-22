@@ -4,7 +4,7 @@ CONFIG_ARCH_CPU_INIT=y
 CONFIG_ARCH_AT91=y
 CONFIG_TEXT_BASE=0x23f00000
 CONFIG_TARGET_SAMA5D27_NEXTGEN=y
-CONFIG_BAUDRATE=921600
+CONFIG_BAUDRATE=576000
 CONFIG_SPL_GPIO=y
 CONFIG_SPL_LIBCOMMON_SUPPORT=y
 CONFIG_SPL_LIBGENERIC_SUPPORT=y
@@ -40,7 +40,7 @@ CONFIG_SD_BOOT=y
 CONFIG_SPI_BOOT=y
 CONFIG_BOOTDELAY=2
 CONFIG_USE_BOOTARGS=y
-CONFIG_BOOTARGS="console=ttyS0,921600 loglevel=7 consoleblank=0 root=/dev/mmcblk0p2 rw rootwait"
+CONFIG_BOOTARGS="console=ttyS0,576000 loglevel=7 consoleblank=0 root=/dev/mmcblk0p2 rw rootwait"
 CONFIG_USE_BOOTCOMMAND=y
 CONFIG_BOOTCOMMAND="echo *** NextGen U-Boot diagnostic start ***; echo Loading DTB; fatload mmc 0:1 0x22000000 nextgen.dtb; echo Loading kernel; fatload mmc 0:1 0x23000000 zImage; echo Entering bootz; bootz 0x23000000 - 0x22000000"
 CONFIG_SYS_CBSIZE=256
