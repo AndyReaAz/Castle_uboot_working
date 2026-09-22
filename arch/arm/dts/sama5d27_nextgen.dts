@@ -323,3 +323,12 @@
 		};
 	};
 };
+
+/*
+ * U-Boot does not use Ethernet on NextGen.  The SOM include enables MACB0
+ * for the reference board, so override it here to avoid binding/probing the
+ * MAC/PHY in the bootloader.
+ */
+&macb0 {
+	status = "disabled";
+};
