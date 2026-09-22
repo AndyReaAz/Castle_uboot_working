@@ -69,11 +69,7 @@
 	
 	ahb {
 		usb1: ohci@400000 {
-			num-ports = <3>;
-			atmel,vbus-gpio = <&pioA 42 0>;
-			pinctrl-names = "default";
-			pinctrl-0 = <&pinctrl_usb_default>;
-			status = "okay";
+			status = "disabled";
 		};
 		
 		usb2: ehci@500000 {
@@ -99,13 +95,14 @@
 				pinctrl-names = "default";
 				pinctrl-0 = <&pinctrl_qspi1_default>;
 				status = "okay";
-				bootph-all;
+				/delete-property/ bootph-all;
 				qspiflash@0 {
 					compatible = "spi-nand";
 					reg = <0>;
 					spi-max-frequency = <50000000>;
 					spi-rx-bus-width = <4>;
 					spi-tx-bus-width = <1>;
+					/delete-property/ bootph-all;
 					partitions {
 						compatible = "fixed-partitions";
 						#address-cells = <1>;
@@ -240,7 +237,6 @@
 					<PIN_PB9__QSPI1_IO2>,
 					<PIN_PB10__QSPI1_IO3>;
 					bias-disable;
-					bootph-all;
 				};
 				
 				pinctrl_lcd_base: pinctrl_lcd_base {
@@ -330,5 +326,14 @@
  * MAC/PHY in the bootloader.
  */
 &macb0 {
+	status = "disabled";
+};
+
+/* U-Boot does not use the board I2C buses in the fast boot path. */
+&i2c0 {
+	status = "disabled";
+};
+
+&i2c1 {
 	status = "disabled";
 };
