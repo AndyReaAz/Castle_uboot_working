@@ -131,7 +131,7 @@
 				atmel,output-mode = <18>;  /* physical RGB666 bus */
 				atmel,guard-time = <1>;
 				pinctrl-names = "default";
-				pinctrl-0 = <&pinctrl_lcd_base &pinctrl_lcd_pwm &pinctrl_lcd_rgb666>;
+				pinctrl-0 = <&pinctrl_lcd_base &pinctrl_lcd_rgb666>;
 				status = "okay";
 				bootph-all;
 				
@@ -221,6 +221,18 @@
 			};
 			
 			pioA: pinctrl@fc038000 {
+				/*
+				 * Keep the LCD backlight hard-off throughout U-Boot.
+				 * Linux boots with its own DTB and later remuxes PC28 to
+				 * LCDPWM when the HLCDC/backlight driver takes ownership.
+				 */
+				lcd-backlight-off-hog {
+					gpio-hog;
+					gpios = <92 GPIO_ACTIVE_HIGH>; /* PC28 */
+					output-low;
+					line-name = "lcd-backlight-off";
+					bootph-all;
+				};
 				pinctrl_spi1_default: spi1_default {
 					pinmux = <PIN_PC1__SPI1_SPCK>,
 					<PIN_PC2__SPI1_MOSI>,
