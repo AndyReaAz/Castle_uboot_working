@@ -28,7 +28,8 @@ export ARCH
 # e.g. /opt/toolchains/bin/arm-linux-gnueabihf-
 TOOLCHAIN_PREFIX="${UBOOT_TOOLCHAIN_PREFIX:-arm-linux-gnueabihf-}"
 
-if ! command -v "${TOOLCHAIN_PREFIX}gcc" >/dev/null 2>&1 &&    [ ! -x "${TOOLCHAIN_PREFIX}gcc" ]; then
+if ! command -v "${TOOLCHAIN_PREFIX}gcc" >/dev/null 2>&1 && \
+   [ ! -x "${TOOLCHAIN_PREFIX}gcc" ]; then
     echo "error: ARM compiler not found: ${TOOLCHAIN_PREFIX}gcc" >&2
     echo "Set UBOOT_TOOLCHAIN_PREFIX=/path/to/arm-linux-gnueabihf-" >&2
     exit 1
@@ -115,69 +116,7 @@ check_fast_config()
     require_y CONFIG_SILENT_CONSOLE
     require_unset CONFIG_VIDEO_LOGO
 
-    grep -q '^CONFIG_ENV_FAT_DEVICE_AND_PART="0:1"
-build()
-{
-    make -C "$ROOT" O="$OUT" -j"$JOBS"         ARCH="$ARCH"         CROSS_COMPILE="$CROSS_COMPILE"
-}
-
-case "$ACTION" in
-    clean)
-        rm -rf "$OUT"
-        ;;
-    config)
-        configure
-        ;;
-    menuconfig)
-        configure
-        make -C "$ROOT" O="$OUT"             ARCH="$ARCH"             CROSS_COMPILE="$CROSS_COMPILE"             menuconfig
-        ;;
-    rebuild)
-        rm -rf "$OUT"
-        configure
-        build
-        ;;
-    build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
-        configure
-        build
-        ;;
-    *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
-        exit 2
-        ;;
-esac
-
-if [ -f "$OUT/u-boot.bin" ]; then
-    [ -x "$OUT/tools/mkenvimage" ] || {
-        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
-        exit 1
-    }
-
-    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
-
-    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
-        echo
-        ccache -s | sed -n '1,12p'
-    fi
-fi
- "$CFG" || {
+    grep -q '^CONFIG_ENV_FAT_DEVICE_AND_PART="0:1"$' "$CFG" || {
         echo "error: fast U-Boot environment must be on mmc 0:1" >&2
         exit 1
     }
@@ -186,7 +125,10 @@ fi
 configure()
 {
     check_nextgen_flash_layout
-    make -C "$ROOT" O="$OUT"         ARCH="$ARCH"         CROSS_COMPILE="$CROSS_COMPILE"         "$DEFCONFIG"
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
 
     if [ "$PROFILE" = "fast" ]; then
         check_fast_config
@@ -195,7 +137,9 @@ configure()
 
 build()
 {
-    make -C "$ROOT" O="$OUT" -j"$JOBS"         ARCH="$ARCH"         CROSS_COMPILE="$CROSS_COMPILE"
+    make -C "$ROOT" O="$OUT" -j"$JOBS" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE"
 }
 
 case "$ACTION" in
@@ -207,7 +151,10 @@ case "$ACTION" in
         ;;
     menuconfig)
         configure
-        make -C "$ROOT" O="$OUT"             ARCH="$ARCH"             CROSS_COMPILE="$CROSS_COMPILE"             menuconfig
+        make -C "$ROOT" O="$OUT" \
+            ARCH="$ARCH" \
+            CROSS_COMPILE="$CROSS_COMPILE" \
+            menuconfig
         ;;
     rebuild)
         rm -rf "$OUT"
