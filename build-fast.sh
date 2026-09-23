@@ -2,8 +2,24 @@
 set -eu
 
 ROOT="$(CDPATH= cd -- "$(dirname -- "$0")" && pwd)"
-OUT="${UBOOT_OUT:-$ROOT/build-fast}"
-DEFCONFIG="${UBOOT_DEFCONFIG:-sama5d27_nextgen_mmc_defconfig}"
+ACTION="${1:-build}"
+PROFILE="${2:-${UBOOT_PROFILE:-fast}}"
+
+case "$PROFILE" in
+    fast)
+        OUT="${UBOOT_OUT:-$ROOT/build-fast}"
+        DEFCONFIG="${UBOOT_DEFCONFIG:-sama5d27_nextgen_mmc_defconfig}"
+        ;;
+    diag)
+        OUT="${UBOOT_OUT:-$ROOT/build-diag}"
+        DEFCONFIG="${UBOOT_DEFCONFIG:-sama5d27_nextgen_mmc_diag_defconfig}"
+        ;;
+    *)
+        echo "error: unknown U-Boot profile '$PROFILE' (expected fast or diag)" >&2
+        exit 2
+        ;;
+esac
+
 ARCH=arm
 export ARCH
 
@@ -75,7 +91,7 @@ build()
     make -C "$ROOT" O="$OUT" -j"$JOBS"         ARCH="$ARCH"         CROSS_COMPILE="$CROSS_COMPILE"
 }
 
-case "${1:-build}" in
+case "$ACTION" in
     clean)
         rm -rf "$OUT"
         ;;
@@ -99,7 +115,7 @@ case "${1:-build}" in
         build
         ;;
     *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean]" >&2
+        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
         exit 2
         ;;
 esac
@@ -118,6 +134,8 @@ if [ -f "$OUT/u-boot.bin" ]; then
 
     echo
     echo "U-Boot build complete"
+    echo "  PROFILE       = $PROFILE"
+    echo "  DEFCONFIG     = $DEFCONFIG"
     echo "  ARCH          = $ARCH"
     echo "  CROSS_COMPILE = $CROSS_COMPILE"
     echo "  OUTPUT        = $OUT/u-boot.bin"
