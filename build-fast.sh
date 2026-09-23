@@ -80,10 +80,117 @@ check_nextgen_flash_layout()
     fi
 }
 
+check_fast_config()
+{
+    CFG="$OUT/.config"
+
+    require_y()
+    {
+        grep -q "^$1=y$" "$CFG" || {
+            echo "error: fast U-Boot requires $1=y" >&2
+            exit 1
+        }
+    }
+
+    require_unset()
+    {
+        grep -q "^# $1 is not set$" "$CFG" || {
+            echo "error: fast U-Boot requires $1 to be disabled" >&2
+            exit 1
+        }
+    }
+
+    require_y CONFIG_AT91_UTMI
+    require_y CONFIG_MMC_SDHCI
+    require_y CONFIG_MMC_SDHCI_ATMEL
+    require_y CONFIG_DM_GPIO
+    require_y CONFIG_ATMEL_PIO4
+    require_y CONFIG_SPI
+    require_y CONFIG_DM_SPI
+    require_y CONFIG_ATMEL_SPI
+    require_y CONFIG_VIDEO
+    require_y CONFIG_VIDEO_ST7789_SPI
+    require_y CONFIG_ATMEL_HLCD
+    require_y CONFIG_ENV_IS_IN_FAT
+    require_y CONFIG_SILENT_CONSOLE
+    require_unset CONFIG_VIDEO_LOGO
+
+    grep -q '^CONFIG_ENV_FAT_DEVICE_AND_PART="0:1"
+build()
+{
+    make -C "$ROOT" O="$OUT" -j"$JOBS"         ARCH="$ARCH"         CROSS_COMPILE="$CROSS_COMPILE"
+}
+
+case "$ACTION" in
+    clean)
+        rm -rf "$OUT"
+        ;;
+    config)
+        configure
+        ;;
+    menuconfig)
+        configure
+        make -C "$ROOT" O="$OUT"             ARCH="$ARCH"             CROSS_COMPILE="$CROSS_COMPILE"             menuconfig
+        ;;
+    rebuild)
+        rm -rf "$OUT"
+        configure
+        build
+        ;;
+    build)
+        # Always refresh from the branch defconfig. This prevents stale
+        # build-fast/.config files from retaining options removed by fast-boot
+        # work or missing options added by later fixes.
+        configure
+        build
+        ;;
+    *)
+        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
+        exit 2
+        ;;
+esac
+
+if [ -f "$OUT/u-boot.bin" ]; then
+    [ -x "$OUT/tools/mkenvimage" ] || {
+        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
+        exit 1
+    }
+
+    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
+    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
+        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
+        exit 1
+    }
+
+    echo
+    echo "U-Boot build complete"
+    echo "  PROFILE       = $PROFILE"
+    echo "  DEFCONFIG     = $DEFCONFIG"
+    echo "  ARCH          = $ARCH"
+    echo "  CROSS_COMPILE = $CROSS_COMPILE"
+    echo "  OUTPUT        = $OUT/u-boot.bin"
+    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
+    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
+
+    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
+        echo
+        ccache -s | sed -n '1,12p'
+    fi
+fi
+ "$CFG" || {
+        echo "error: fast U-Boot environment must be on mmc 0:1" >&2
+        exit 1
+    }
+}
+
 configure()
 {
     check_nextgen_flash_layout
     make -C "$ROOT" O="$OUT"         ARCH="$ARCH"         CROSS_COMPILE="$CROSS_COMPILE"         "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
+    fi
 }
 
 build()
