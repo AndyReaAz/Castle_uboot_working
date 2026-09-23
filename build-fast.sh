@@ -105,6 +105,7 @@ check_fast_config()
     require_y CONFIG_MMC_SDHCI
     require_y CONFIG_MMC_SDHCI_ATMEL
     require_y CONFIG_DM_GPIO
+    require_y CONFIG_GPIO_HOG
     require_y CONFIG_ATMEL_PIO4
     require_y CONFIG_SPI
     require_y CONFIG_DM_SPI
