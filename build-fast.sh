@@ -18,8 +18,12 @@ case "$PROFILE" in
         OUT="${UBOOT_OUT:-$ROOT/build-prod}"
         DEFCONFIG="${UBOOT_DEFCONFIG:-sama5d27_nextgen_prod_defconfig}"
         ;;
+    prod-diag)
+        OUT="${UBOOT_OUT:-$ROOT/build-prod-diag}"
+        DEFCONFIG="${UBOOT_DEFCONFIG:-sama5d27_nextgen_prod_diag_defconfig}"
+        ;;
     *)
-        echo "error: unknown U-Boot profile '$PROFILE' (expected fast, diag or prod)" >&2
+        echo "error: unknown U-Boot profile '$PROFILE' (expected fast, diag, prod or prod-diag)" >&2
         exit 2
         ;;
 esac
@@ -50,11 +54,15 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 check_nextgen_flash_layout()
 {
     DTS="$ROOT/arch/arm/dts/sama5d27_nextgen.dts"
-    if [ "$PROFILE" = "prod" ]; then
-        ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen_prod.env"
-    else
-        ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen.env"
-    fi
+    case "$PROFILE" in
+        prod|prod-diag)
+            ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen_prod.env"
+            ;;
+        *)
+
+            ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen.env"
+            ;;
+    esac
 
     grep -q 'reg = <0x0 0x8000>;' "$DTS" ||
         { echo "error: NextGen AT91Bootstrap NOR partition changed" >&2; exit 1; }
@@ -197,7 +205,7 @@ case "$ACTION" in
         build
         ;;
     *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag|prod]" >&2
+        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag|prod|prod-diag]" >&2
         exit 2
         ;;
 esac
@@ -209,7 +217,7 @@ if [ -f "$OUT/u-boot.bin" ]; then
     }
 
     UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    if [ "$PROFILE" = "prod" ]; then
+    if [ "$PROFILE" = "prod" ] || [ "$PROFILE" = "prod-diag" ]; then
         # Keep the migration image inside the legacy AT91Bootstrap 0xA0000
         # fixed-read window. This preserves bootability if power is lost after
         # U-Boot is replaced but before the new trailer-aware bootstrap lands.
