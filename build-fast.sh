@@ -164,8 +164,361 @@ check_flash_config()
         echo "error: flash U-Boot environment erase size changed" >&2
         exit 1
     }
-    grep -q '^CONFIG_ENV_SOURCE_FILE="sama5d27_nextgen_flash"$' "$CFG" || {
+    grep -q '^CONFIG_ENV_SOURCE_FILE="sama5d27_nextgen_flash"}
+
+configure()
+{
+    check_nextgen_flash_layout
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
+    elif [ "$PROFILE" = "flash" ]; then
+        check_flash_config
+    fi
+}
+
+build()
+{
+    make -C "$ROOT" O="$OUT" -j"$JOBS" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE"
+}
+
+case "$ACTION" in
+    clean)
+        rm -rf "$OUT"
+        ;;
+    config)
+        configure
+        ;;
+    menuconfig)
+        configure
+        make -C "$ROOT" O="$OUT" \
+            ARCH="$ARCH" \
+            CROSS_COMPILE="$CROSS_COMPILE" \
+            menuconfig
+        ;;
+    rebuild)
+        rm -rf "$OUT"
+        configure
+        build
+        ;;
+    build)
+        # Always refresh from the branch defconfig. This prevents stale
+        # build-fast/.config files from retaining options removed by fast-boot
+        # work or missing options added by later fixes.
+        configure
+        build
+        ;;
+    *)
+        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag|flash]" >&2
+        exit 2
+        ;;
+esac
+
+if [ -f "$OUT/u-boot.bin" ]; then
+    [ -x "$OUT/tools/mkenvimage" ] || {
+        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
+        exit 1
+    }
+
+    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
+    if [ "$PROFILE" = "flash" ]; then
+        UBOOT_MAX=$((0x137ff0))
+    else
+        UBOOT_MAX=$((0x138000))
+    fi
+    [ "$UBOOT_BYTES" -le "$UBOOT_MAX" ] || {
+        echo "error: u-boot.bin exceeds the NOR U-Boot payload budget: $UBOOT_BYTES > $UBOOT_MAX bytes" >&2
+        exit 1
+    }
+
+    if [ "$PROFILE" = "flash" ]; then
+        emit_le32()
+        {
+            value="$1"
+            printf "\\$(printf '%03o' $((value & 255)))\\$(printf '%03o' $(((value >> 8) & 255)))\\$(printf '%03o' $(((value >> 16) & 255)))\\$(printf '%03o' $(((value >> 24) & 255)))"
+        }
+
+        UBOOT_INV=$((0xffffffff ^ UBOOT_BYTES))
+        {
+            printf 'NGUB'
+            emit_le32 "$UBOOT_BYTES"
+            emit_le32 "$UBOOT_INV"
+            emit_le32 1
+        } > "$OUT/u-boot.nor-trailer"
+
+        TRAILER_BYTES="$(wc -c < "$OUT/u-boot.nor-trailer" | tr -d '[:space:]')"
+        [ "$TRAILER_BYTES" -eq 16 ] || {
+            echo "error: generated NOR U-Boot trailer is $TRAILER_BYTES bytes, expected 16" >&2
+            exit 1
+        }
+    fi
+
+    echo
+    echo "U-Boot build complete"
+    echo "  PROFILE       = $PROFILE"
+    echo "  DEFCONFIG     = $DEFCONFIG"
+    echo "  ARCH          = $ARCH"
+    echo "  CROSS_COMPILE = $CROSS_COMPILE"
+    echo "  OUTPUT        = $OUT/u-boot.bin"
+    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
+    if [ "$PROFILE" = "flash" ]; then
+        echo "  NOR_TRAILER   = $OUT/u-boot.nor-trailer @ 0x13fff0"
+        ls -lh "$OUT/u-boot.bin" "$OUT/u-boot.nor-trailer" "$OUT/tools/mkenvimage"
+    else
+        ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
+    fi
+
+    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
+        echo
+        ccache -s | sed -n '1,12p'
+    fi
+fi
+ "$CFG" || {
         echo "error: flash U-Boot default environment changed" >&2
+        exit 1
+    }
+    grep -q '^# CONFIG_CMD_UBIFS is not set}
+
+configure()
+{
+    check_nextgen_flash_layout
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
+    elif [ "$PROFILE" = "flash" ]; then
+        check_flash_config
+    fi
+}
+
+build()
+{
+    make -C "$ROOT" O="$OUT" -j"$JOBS" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE"
+}
+
+case "$ACTION" in
+    clean)
+        rm -rf "$OUT"
+        ;;
+    config)
+        configure
+        ;;
+    menuconfig)
+        configure
+        make -C "$ROOT" O="$OUT" \
+            ARCH="$ARCH" \
+            CROSS_COMPILE="$CROSS_COMPILE" \
+            menuconfig
+        ;;
+    rebuild)
+        rm -rf "$OUT"
+        configure
+        build
+        ;;
+    build)
+        # Always refresh from the branch defconfig. This prevents stale
+        # build-fast/.config files from retaining options removed by fast-boot
+        # work or missing options added by later fixes.
+        configure
+        build
+        ;;
+    *)
+        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag|flash]" >&2
+        exit 2
+        ;;
+esac
+
+if [ -f "$OUT/u-boot.bin" ]; then
+    [ -x "$OUT/tools/mkenvimage" ] || {
+        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
+        exit 1
+    }
+
+    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
+    if [ "$PROFILE" = "flash" ]; then
+        UBOOT_MAX=$((0x137ff0))
+    else
+        UBOOT_MAX=$((0x138000))
+    fi
+    [ "$UBOOT_BYTES" -le "$UBOOT_MAX" ] || {
+        echo "error: u-boot.bin exceeds the NOR U-Boot payload budget: $UBOOT_BYTES > $UBOOT_MAX bytes" >&2
+        exit 1
+    }
+
+    if [ "$PROFILE" = "flash" ]; then
+        emit_le32()
+        {
+            value="$1"
+            printf "\\$(printf '%03o' $((value & 255)))\\$(printf '%03o' $(((value >> 8) & 255)))\\$(printf '%03o' $(((value >> 16) & 255)))\\$(printf '%03o' $(((value >> 24) & 255)))"
+        }
+
+        UBOOT_INV=$((0xffffffff ^ UBOOT_BYTES))
+        {
+            printf 'NGUB'
+            emit_le32 "$UBOOT_BYTES"
+            emit_le32 "$UBOOT_INV"
+            emit_le32 1
+        } > "$OUT/u-boot.nor-trailer"
+
+        TRAILER_BYTES="$(wc -c < "$OUT/u-boot.nor-trailer" | tr -d '[:space:]')"
+        [ "$TRAILER_BYTES" -eq 16 ] || {
+            echo "error: generated NOR U-Boot trailer is $TRAILER_BYTES bytes, expected 16" >&2
+            exit 1
+        }
+    fi
+
+    echo
+    echo "U-Boot build complete"
+    echo "  PROFILE       = $PROFILE"
+    echo "  DEFCONFIG     = $DEFCONFIG"
+    echo "  ARCH          = $ARCH"
+    echo "  CROSS_COMPILE = $CROSS_COMPILE"
+    echo "  OUTPUT        = $OUT/u-boot.bin"
+    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
+    if [ "$PROFILE" = "flash" ]; then
+        echo "  NOR_TRAILER   = $OUT/u-boot.nor-trailer @ 0x13fff0"
+        ls -lh "$OUT/u-boot.bin" "$OUT/u-boot.nor-trailer" "$OUT/tools/mkenvimage"
+    else
+        ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
+    fi
+
+    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
+        echo
+        ccache -s | sed -n '1,12p'
+    fi
+fi
+ "$CFG" || {
+        echo "error: flash U-Boot must not pull in the UBIFS filesystem stack" >&2
+        exit 1
+    }
+    grep -q '^# CONFIG_MMC is not set}
+
+configure()
+{
+    check_nextgen_flash_layout
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
+    elif [ "$PROFILE" = "flash" ]; then
+        check_flash_config
+    fi
+}
+
+build()
+{
+    make -C "$ROOT" O="$OUT" -j"$JOBS" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE"
+}
+
+case "$ACTION" in
+    clean)
+        rm -rf "$OUT"
+        ;;
+    config)
+        configure
+        ;;
+    menuconfig)
+        configure
+        make -C "$ROOT" O="$OUT" \
+            ARCH="$ARCH" \
+            CROSS_COMPILE="$CROSS_COMPILE" \
+            menuconfig
+        ;;
+    rebuild)
+        rm -rf "$OUT"
+        configure
+        build
+        ;;
+    build)
+        # Always refresh from the branch defconfig. This prevents stale
+        # build-fast/.config files from retaining options removed by fast-boot
+        # work or missing options added by later fixes.
+        configure
+        build
+        ;;
+    *)
+        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag|flash]" >&2
+        exit 2
+        ;;
+esac
+
+if [ -f "$OUT/u-boot.bin" ]; then
+    [ -x "$OUT/tools/mkenvimage" ] || {
+        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
+        exit 1
+    }
+
+    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
+    if [ "$PROFILE" = "flash" ]; then
+        UBOOT_MAX=$((0x137ff0))
+    else
+        UBOOT_MAX=$((0x138000))
+    fi
+    [ "$UBOOT_BYTES" -le "$UBOOT_MAX" ] || {
+        echo "error: u-boot.bin exceeds the NOR U-Boot payload budget: $UBOOT_BYTES > $UBOOT_MAX bytes" >&2
+        exit 1
+    }
+
+    if [ "$PROFILE" = "flash" ]; then
+        emit_le32()
+        {
+            value="$1"
+            printf "\\$(printf '%03o' $((value & 255)))\\$(printf '%03o' $(((value >> 8) & 255)))\\$(printf '%03o' $(((value >> 16) & 255)))\\$(printf '%03o' $(((value >> 24) & 255)))"
+        }
+
+        UBOOT_INV=$((0xffffffff ^ UBOOT_BYTES))
+        {
+            printf 'NGUB'
+            emit_le32 "$UBOOT_BYTES"
+            emit_le32 "$UBOOT_INV"
+            emit_le32 1
+        } > "$OUT/u-boot.nor-trailer"
+
+        TRAILER_BYTES="$(wc -c < "$OUT/u-boot.nor-trailer" | tr -d '[:space:]')"
+        [ "$TRAILER_BYTES" -eq 16 ] || {
+            echo "error: generated NOR U-Boot trailer is $TRAILER_BYTES bytes, expected 16" >&2
+            exit 1
+        }
+    fi
+
+    echo
+    echo "U-Boot build complete"
+    echo "  PROFILE       = $PROFILE"
+    echo "  DEFCONFIG     = $DEFCONFIG"
+    echo "  ARCH          = $ARCH"
+    echo "  CROSS_COMPILE = $CROSS_COMPILE"
+    echo "  OUTPUT        = $OUT/u-boot.bin"
+    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
+    if [ "$PROFILE" = "flash" ]; then
+        echo "  NOR_TRAILER   = $OUT/u-boot.nor-trailer @ 0x13fff0"
+        ls -lh "$OUT/u-boot.bin" "$OUT/u-boot.nor-trailer" "$OUT/tools/mkenvimage"
+    else
+        ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
+    fi
+
+    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
+        echo
+        ccache -s | sed -n '1,12p'
+    fi
+fi
+ "$CFG" || {
+        echo "error: flash U-Boot unexpectedly includes the SD/MMC stack" >&2
         exit 1
     }
 }
