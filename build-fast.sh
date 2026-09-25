@@ -79,6 +79,22 @@ check_nextgen_flash_layout()
     grep -q 'spi-max-frequency = <90000000>;' "$DTS" ||
         { echo "error: NextGen QSPI NAND frequency changed" >&2; exit 1; }
 
+    if [ "$PROFILE" = "flash" ]; then
+        grep -q 'ubi.mtd=rootfs' "$ENV_TEXT" &&
+        grep -q 'ubi.block=0,system' "$ENV_TEXT" &&
+        grep -q 'root=/dev/ubiblock0_0 rootfstype=squashfs ro rootwait' "$ENV_TEXT" &&
+        grep -q 'nextgen.env=flash' "$ENV_TEXT" || {
+            echo "error: production environment does not boot immutable system ubiblock" >&2
+            exit 1
+        }
+        grep -q 'ubi part boot' "$ENV_TEXT" &&
+        grep -q 'ubi read ${loadaddr} device-tree' "$ENV_TEXT" &&
+        grep -q 'ubi read ${krnladdr} kernel' "$ENV_TEXT" || {
+            echo "error: production environment does not load boot UBI objects" >&2
+            exit 1
+        }
+    fi
+
     # Application splash/theme state must not leak back into the boot env.
     grep -q '^manufacturer=' "$ENV_TEXT" ||
         { echo "error: missing manufacturer factory identity" >&2; exit 1; }
@@ -254,7 +270,9 @@ if [ -f "$OUT/u-boot.bin" ]; then
 
     UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
     if [ "$PROFILE" = "flash" ]; then
-        UBOOT_MAX=$((0x137ff0))
+        # Keep the new U-Boot inside the old bootstrap's fixed 640 KiB read
+        # window so power loss before bootstrap replacement remains bootable.
+        UBOOT_MAX=$((0x0a0000))
     else
         UBOOT_MAX=$((0x138000))
     fi
