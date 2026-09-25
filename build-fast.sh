@@ -50,7 +50,11 @@ JOBS="${JOBS:-$(getconf _NPROCESSORS_ONLN 2>/dev/null || echo 4)}"
 check_nextgen_flash_layout()
 {
     DTS="$ROOT/arch/arm/dts/sama5d27_nextgen.dts"
-    ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen.env"
+    if [ "$PROFILE" = "prod" ]; then
+        ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen_prod.env"
+    else
+        ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen.env"
+    fi
 
     grep -q 'reg = <0x0 0x8000>;' "$DTS" ||
         { echo "error: NextGen AT91Bootstrap NOR partition changed" >&2; exit 1; }
