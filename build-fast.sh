@@ -64,7 +64,10 @@ check_nextgen_flash_layout()
     grep -q 'reg = <0x140000 0x020000>;' "$DTS" ||
         { echo "error: NextGen redundant environment NOR partition changed" >&2; exit 1; }
 
-    # First flash-root profile intentionally limits UBI scanning to 128 MiB.
+    # Production flash boot uses a small 8.5 MiB UBI partition for immutable
+    # boot objects, followed by the independent 128 MiB rootfs UBI partition.
+    grep -q 'reg = <0x00000000 0x00880000>;' "$DTS" ||
+        { echo "error: NextGen NAND boot UBI partition changed" >&2; exit 1; }
     grep -q 'reg = <0x00880000 0x08000000>;' "$DTS" ||
         { echo "error: NextGen NAND rootfs partition is not 128 MiB" >&2; exit 1; }
 
@@ -127,8 +130,29 @@ check_fast_config()
     }
 }
 
-configure()
+check_flash_config()
 {
+    CFG="$OUT/.config"
+
+    for opt in \
+        CONFIG_MTD \
+        CONFIG_DM_MTD \
+        CONFIG_MTD_SPI_NAND \
+        CONFIG_CMD_MTD \
+        CONFIG_CMD_UBI \
+        CONFIG_DM_SPI_FLASH \
+        CONFIG_SPI_FLASH_MACRONIX \
+        CONFIG_ENV_IS_IN_SPI_FLASH \
+        CONFIG_ENV_REDUNDANT \
+        CONFIG_ATMEL_QSPI
+    do
+        grep -q "^$opt=y$" "$CFG" || {
+            echo "error: flash U-Boot requires $opt=y" >&2
+            exit 1
+        }
+    done
+
+    grep -q '^CONFIG_ENV_OFFSET=0x140000
     check_nextgen_flash_layout
     make -C "$ROOT" O="$OUT" \
         ARCH="$ARCH" \
@@ -138,14 +162,8 @@ configure()
     if [ "$PROFILE" = "fast" ]; then
         check_fast_config
     elif [ "$PROFILE" = "flash" ]; then
-        CFG="$OUT/.config"
-        for opt in CONFIG_MTD CONFIG_DM_MTD CONFIG_MTD_SPI_NAND CONFIG_CMD_MTD CONFIG_CMD_UBI CONFIG_DM_SPI_FLASH CONFIG_SPI_FLASH_MACRONIX CONFIG_ENV_IS_IN_SPI_FLASH CONFIG_ENV_REDUNDANT; do
-            grep -q "^$opt=y$" "$CFG" || {
-                echo "error: flash U-Boot requires $opt=y" >&2
-                exit 1
-            }
-        done
-        grep -q '^CONFIG_ENV_OFFSET=0x140000
+        check_flash_config
+    fi
 }
 
 build()
@@ -224,18 +242,22 @@ if [ -f "$OUT/u-boot.bin" ]; then
             echo "error: generated NOR U-Boot trailer is $TRAILER_BYTES bytes, expected 16" >&2
             exit 1
         }
+    fi
+
+    echo
+    echo "U-Boot build complete"
+    echo "  PROFILE       = $PROFILE"
+    echo "  DEFCONFIG     = $DEFCONFIG"
+    echo "  ARCH          = $ARCH"
+    echo "  CROSS_COMPILE = $CROSS_COMPILE"
+    echo "  OUTPUT        = $OUT/u-boot.bin"
+    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
+    if [ "$PROFILE" = "flash" ]; then
         echo "  NOR_TRAILER   = $OUT/u-boot.nor-trailer @ 0x13fff0"
+        ls -lh "$OUT/u-boot.bin" "$OUT/u-boot.nor-trailer" "$OUT/tools/mkenvimage"
+    else
+        ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
     fi
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
 
     if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
         echo
@@ -243,10 +265,19 @@ if [ -f "$OUT/u-boot.bin" ]; then
     fi
 fi
  "$CFG" || {
-            echo "error: flash U-Boot primary env offset changed" >&2
-            exit 1
-        }
-        grep -q '^CONFIG_ENV_OFFSET_REDUND=0x150000
+        echo "error: flash U-Boot primary env offset changed" >&2
+        exit 1
+    }
+    grep -q '^CONFIG_ENV_OFFSET_REDUND=0x150000
+    check_nextgen_flash_layout
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
+    fi
 }
 
 build()
@@ -316,10 +347,19 @@ if [ -f "$OUT/u-boot.bin" ]; then
     fi
 fi
  "$CFG" || {
-            echo "error: flash U-Boot redundant env offset changed" >&2
-            exit 1
-        }
-        grep -q '^CONFIG_ENV_SECT_SIZE=0x10000
+        echo "error: flash U-Boot redundant env offset changed" >&2
+        exit 1
+    }
+    grep -q '^CONFIG_ENV_SECT_SIZE=0x10000
+    check_nextgen_flash_layout
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
+    fi
 }
 
 build()
@@ -389,10 +429,19 @@ if [ -f "$OUT/u-boot.bin" ]; then
     fi
 fi
  "$CFG" || {
-            echo "error: flash U-Boot environment erase size changed" >&2
-            exit 1
-        }
-        grep -q '^CONFIG_ENV_SOURCE_FILE="sama5d27_nextgen_flash"
+        echo "error: flash U-Boot environment erase size changed" >&2
+        exit 1
+    }
+    grep -q '^CONFIG_ENV_SOURCE_FILE="sama5d27_nextgen_flash"
+    check_nextgen_flash_layout
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
+    fi
 }
 
 build()
@@ -462,9 +511,21 @@ if [ -f "$OUT/u-boot.bin" ]; then
     fi
 fi
  "$CFG" || {
-            echo "error: flash U-Boot default environment changed" >&2
-            exit 1
-        }
+        echo "error: flash U-Boot default environment changed" >&2
+        exit 1
+    }
+}
+
+configure()
+{
+    check_nextgen_flash_layout
+    make -C "$ROOT" O="$OUT" \
+        ARCH="$ARCH" \
+        CROSS_COMPILE="$CROSS_COMPILE" \
+        "$DEFCONFIG"
+
+    if [ "$PROFILE" = "fast" ]; then
+        check_fast_config
     fi
 }
 
