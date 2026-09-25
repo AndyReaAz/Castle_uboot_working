@@ -142,6 +142,8 @@ check_flash_config()
         CONFIG_MTD \
         CONFIG_DM_MTD \
         CONFIG_MTD_SPI_NAND \
+        CONFIG_MTD_UBI \
+        CONFIG_MTD_PARTITIONS \
         CONFIG_CMD_UBI \
         CONFIG_DM_SPI_FLASH \
         CONFIG_SPI_FLASH_MACRONIX \
