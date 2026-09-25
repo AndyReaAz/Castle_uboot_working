@@ -108,14 +108,14 @@
 						#address-cells = <1>;
 						#size-cells = <1>;
 						
-						dtb@0 {
-							label = "device-tree";
-							reg = <0x00000000 0x00080000>;   /* 512 KiB */
-						};
-						
-						kernel@80000 {
-							label = "kernel";
-							reg = <0x00080000 0x00800000>;   /* 8 MiB */
+						boot@0 {
+							/*
+							 * Small UBI device containing static device-tree and
+							 * kernel volumes. 68 x 128 KiB PEBs keeps U-Boot attach
+							 * bounded while UBI records each image's exact data size.
+							 */
+							label = "boot";
+							reg = <0x00000000 0x00880000>;   /* 8.5 MiB */
 						};
 						
 						rootfs@880000 {
