@@ -176,7 +176,19 @@ check_flash_config()
         echo "error: flash U-Boot must not pull in the UBIFS filesystem stack" >&2
         exit 1
     }
-    grep -q '^# CONFIG_MMC is not set}
+    grep -q '^# CONFIG_MMC is not set$' "$CFG" || {
+        echo "error: flash U-Boot unexpectedly includes the SD/MMC stack" >&2
+        exit 1
+    }
+    grep -q '^# CONFIG_CMD_MTD is not set$' "$CFG" || {
+        echo "error: flash U-Boot unexpectedly includes the unused mtd shell command" >&2
+        exit 1
+    }
+    grep -q '^# CONFIG_VIDEO is not set$' "$CFG" || {
+        echo "error: flash U-Boot unexpectedly includes the video stack" >&2
+        exit 1
+    }
+}
 
 configure()
 {
