@@ -180,6 +180,8 @@ configure()
 
     if [ "$PROFILE" = "fast" ]; then
         check_fast_config
+    elif [ "$PROFILE" = "flash" ]; then
+        check_flash_config
     fi
 }
 
@@ -217,7 +219,7 @@ case "$ACTION" in
         build
         ;;
     *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
+        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag|flash]" >&2
         exit 2
         ;;
 esac
@@ -229,10 +231,37 @@ if [ -f "$OUT/u-boot.bin" ]; then
     }
 
     UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
+    if [ "$PROFILE" = "flash" ]; then
+        UBOOT_MAX=$((0x137ff0))
+    else
+        UBOOT_MAX=$((0x138000))
+    fi
+    [ "$UBOOT_BYTES" -le "$UBOOT_MAX" ] || {
+        echo "error: u-boot.bin exceeds the NOR U-Boot payload budget: $UBOOT_BYTES > $UBOOT_MAX bytes" >&2
         exit 1
     }
+
+    if [ "$PROFILE" = "flash" ]; then
+        emit_le32()
+        {
+            value="$1"
+            printf "\\$(printf '%03o' $((value & 255)))\\$(printf '%03o' $(((value >> 8) & 255)))\\$(printf '%03o' $(((value >> 16) & 255)))\\$(printf '%03o' $(((value >> 24) & 255)))"
+        }
+
+        UBOOT_INV=$((0xffffffff ^ UBOOT_BYTES))
+        {
+            printf 'NGUB'
+            emit_le32 "$UBOOT_BYTES"
+            emit_le32 "$UBOOT_INV"
+            emit_le32 1
+        } > "$OUT/u-boot.nor-trailer"
+
+        TRAILER_BYTES="$(wc -c < "$OUT/u-boot.nor-trailer" | tr -d '[:space:]')"
+        [ "$TRAILER_BYTES" -eq 16 ] || {
+            echo "error: generated NOR U-Boot trailer is $TRAILER_BYTES bytes, expected 16" >&2
+            exit 1
+        }
+    fi
 
     echo
     echo "U-Boot build complete"
@@ -242,7 +271,12 @@ if [ -f "$OUT/u-boot.bin" ]; then
     echo "  CROSS_COMPILE = $CROSS_COMPILE"
     echo "  OUTPUT        = $OUT/u-boot.bin"
     echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
+    if [ "$PROFILE" = "flash" ]; then
+        echo "  NOR_TRAILER   = $OUT/u-boot.nor-trailer @ 0x13fff0"
+        ls -lh "$OUT/u-boot.bin" "$OUT/u-boot.nor-trailer" "$OUT/tools/mkenvimage"
+    else
+        ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
+    fi
 
     if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
         echo
