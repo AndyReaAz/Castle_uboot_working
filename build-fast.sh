@@ -148,7 +148,8 @@ check_flash_config()
         CONFIG_SPI_FLASH_MACRONIX \
         CONFIG_ENV_IS_IN_SPI_FLASH \
         CONFIG_ENV_REDUNDANT \
-        CONFIG_ATMEL_QSPI
+        CONFIG_ATMEL_QSPI \
+        CONFIG_HUSH_PARSER
     do
         grep -q "^$opt=y$" "$CFG" || {
             echo "error: flash U-Boot requires $opt=y" >&2
