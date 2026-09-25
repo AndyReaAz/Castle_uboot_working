@@ -206,8 +206,11 @@ if [ -f "$OUT/u-boot.bin" ]; then
 
     UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
     if [ "$PROFILE" = "prod" ]; then
-        [ "$UBOOT_BYTES" -le $((0x137ff0)) ] || {
-            echo "error: production u-boot.bin overlaps the NOR length trailer: $UBOOT_BYTES bytes" >&2
+        # Keep the migration image inside the legacy AT91Bootstrap 0xA0000
+        # fixed-read window. This preserves bootability if power is lost after
+        # U-Boot is replaced but before the new trailer-aware bootstrap lands.
+        [ "$UBOOT_BYTES" -le $((0x0a0000)) ] || {
+            echo "error: production u-boot.bin exceeds legacy 640 KiB migration window: $UBOOT_BYTES bytes" >&2
             exit 1
         }
     else
