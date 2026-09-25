@@ -27,9 +27,6 @@ esac
 ARCH=arm
 export ARCH
 
-# U-Boot is built with the normal host-installed ARM cross toolchain.  It has
-# no dependency on Buildroot.  Override UBOOT_TOOLCHAIN_PREFIX if required,
-# e.g. /opt/toolchains/bin/arm-linux-gnueabihf-
 TOOLCHAIN_PREFIX="${UBOOT_TOOLCHAIN_PREFIX:-arm-linux-gnueabihf-}"
 
 if ! command -v "${TOOLCHAIN_PREFIX}gcc" >/dev/null 2>&1 && \
@@ -39,7 +36,6 @@ if ! command -v "${TOOLCHAIN_PREFIX}gcc" >/dev/null 2>&1 && \
     exit 1
 fi
 
-# U-Boot/Kbuild explicitly supports a ccache wrapper in CROSS_COMPILE.
 if [ "${UBOOT_CCACHE:-1}" = "1" ] && command -v ccache >/dev/null 2>&1; then
     CROSS_COMPILE="ccache $TOOLCHAIN_PREFIX"
     CCACHE_DIR="${CCACHE_DIR:-$HOME/.ccache}"
@@ -56,7 +52,6 @@ check_nextgen_flash_layout()
     DTS="$ROOT/arch/arm/dts/sama5d27_nextgen.dts"
     ENV_TEXT="$ROOT/board/atmel/sama5d27_nextgen/sama5d27_nextgen.env"
 
-    # Ratified 2 MiB NOR map shared with AT91Bootstrap and Linux.
     grep -q 'reg = <0x0 0x8000>;' "$DTS" ||
         { echo "error: NextGen AT91Bootstrap NOR partition changed" >&2; exit 1; }
     grep -q 'reg = <0x8000 0x138000>;' "$DTS" ||
@@ -64,15 +59,11 @@ check_nextgen_flash_layout()
     grep -q 'reg = <0x140000 0x020000>;' "$DTS" ||
         { echo "error: NextGen redundant environment NOR partition changed" >&2; exit 1; }
 
-    # First flash-root profile intentionally limits UBI scanning to 128 MiB.
     grep -q 'reg = <0x00880000 0x08000000>;' "$DTS" ||
         { echo "error: NextGen NAND rootfs partition is not 128 MiB" >&2; exit 1; }
-
-    # The QSPI request deliberately selects the ~83 MHz SAMA5D2 divider step.
     grep -q 'spi-max-frequency = <90000000>;' "$DTS" ||
         { echo "error: NextGen QSPI NAND frequency changed" >&2; exit 1; }
 
-    # Application splash/theme state must not leak back into the boot env.
     grep -q '^manufacturer=' "$ENV_TEXT" ||
         { echo "error: missing manufacturer factory identity" >&2; exit 1; }
     grep -q '^modeltype=' "$ENV_TEXT" ||
@@ -131,25 +122,44 @@ check_prod_config()
 {
     CFG="$OUT/.config"
 
-    for opt in CONFIG_CMD_MTD CONFIG_CMD_UBI CONFIG_CMD_UBIFS CONFIG_MTD CONFIG_DM_MTD CONFIG_MTD_SPI_NAND CONFIG_MTD_UBI CONFIG_ENV_IS_IN_SPI_FLASH CONFIG_ENV_REDUNDANT CONFIG_CMD_RUN; do
+    for opt in \
+        CONFIG_CMD_MTD CONFIG_CMD_UBI CONFIG_CMD_UBIFS CONFIG_CMD_RUN \
+        CONFIG_MTD CONFIG_DM_MTD CONFIG_MTD_SPI_NAND CONFIG_MTD_UBI \
+        CONFIG_ENV_IS_IN_SPI_FLASH CONFIG_ENV_REDUNDANT; do
         grep -q "^$opt=y$" "$CFG" || {
             echo "error: production U-Boot requires $opt=y" >&2
             exit 1
         }
     done
 
-    grep -q '^CONFIG_ENV_OFFSET=0x140000
+    grep -q '^CONFIG_ENV_OFFSET=0x140000$' "$CFG" ||
+        { echo "error: production primary environment offset changed" >&2; exit 1; }
+    grep -q '^CONFIG_ENV_OFFSET_REDUND=0x150000$' "$CFG" ||
+        { echo "error: production redundant environment offset changed" >&2; exit 1; }
+    grep -q '^CONFIG_ENV_SECT_SIZE=0x10000$' "$CFG" ||
+        { echo "error: production environment erase size changed" >&2; exit 1; }
+    grep -q '^CONFIG_ENV_SIZE=0x4000$' "$CFG" ||
+        { echo "error: production environment payload size changed" >&2; exit 1; }
+    grep -q '^CONFIG_ENV_SPI_BUS=1$' "$CFG" ||
+        { echo "error: production environment SPI bus changed" >&2; exit 1; }
+    grep -q '^CONFIG_ENV_SPI_CS=0$' "$CFG" ||
+        { echo "error: production environment SPI chip-select changed" >&2; exit 1; }
+    grep -q '^CONFIG_ENV_SOURCE_FILE="sama5d27_nextgen_prod"$' "$CFG" ||
+        { echo "error: production environment source changed" >&2; exit 1; }
+}
+
+configure()
+{
     check_nextgen_flash_layout
     make -C "$ROOT" O="$OUT" \
         ARCH="$ARCH" \
         CROSS_COMPILE="$CROSS_COMPILE" \
         "$DEFCONFIG"
 
-    if [ "$PROFILE" = "fast" ]; then
-        check_fast_config
-    elif [ "$PROFILE" = "prod" ]; then
-        check_prod_config
-    fi
+    case "$PROFILE" in
+        fast) check_fast_config ;;
+        prod) check_prod_config ;;
+    esac
 }
 
 build()
@@ -179,9 +189,6 @@ case "$ACTION" in
         build
         ;;
     build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
         configure
         build
         ;;
@@ -198,493 +205,17 @@ if [ -f "$OUT/u-boot.bin" ]; then
     }
 
     UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
-
-    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
-        echo
-        ccache -s | sed -n '1,12p'
+    if [ "$PROFILE" = "prod" ]; then
+        [ "$UBOOT_BYTES" -le $((0x137ff0)) ] || {
+            echo "error: production u-boot.bin overlaps the NOR length trailer: $UBOOT_BYTES bytes" >&2
+            exit 1
+        }
+    else
+        [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
+            echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
+            exit 1
+        }
     fi
-fi
- "$CFG" ||
-        { echo "error: production primary environment offset changed" >&2; exit 1; }
-    grep -q '^CONFIG_ENV_OFFSET_REDUND=0x150000
-    check_nextgen_flash_layout
-    make -C "$ROOT" O="$OUT" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE" \
-        "$DEFCONFIG"
-
-    if [ "$PROFILE" = "fast" ]; then
-        check_fast_config
-    fi
-}
-
-build()
-{
-    make -C "$ROOT" O="$OUT" -j"$JOBS" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE"
-}
-
-case "$ACTION" in
-    clean)
-        rm -rf "$OUT"
-        ;;
-    config)
-        configure
-        ;;
-    menuconfig)
-        configure
-        make -C "$ROOT" O="$OUT" \
-            ARCH="$ARCH" \
-            CROSS_COMPILE="$CROSS_COMPILE" \
-            menuconfig
-        ;;
-    rebuild)
-        rm -rf "$OUT"
-        configure
-        build
-        ;;
-    build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
-        configure
-        build
-        ;;
-    *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
-        exit 2
-        ;;
-esac
-
-if [ -f "$OUT/u-boot.bin" ]; then
-    [ -x "$OUT/tools/mkenvimage" ] || {
-        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
-        exit 1
-    }
-
-    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
-
-    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
-        echo
-        ccache -s | sed -n '1,12p'
-    fi
-fi
- "$CFG" ||
-        { echo "error: production redundant environment offset changed" >&2; exit 1; }
-    grep -q '^CONFIG_ENV_SECT_SIZE=0x10000
-    check_nextgen_flash_layout
-    make -C "$ROOT" O="$OUT" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE" \
-        "$DEFCONFIG"
-
-    if [ "$PROFILE" = "fast" ]; then
-        check_fast_config
-    fi
-}
-
-build()
-{
-    make -C "$ROOT" O="$OUT" -j"$JOBS" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE"
-}
-
-case "$ACTION" in
-    clean)
-        rm -rf "$OUT"
-        ;;
-    config)
-        configure
-        ;;
-    menuconfig)
-        configure
-        make -C "$ROOT" O="$OUT" \
-            ARCH="$ARCH" \
-            CROSS_COMPILE="$CROSS_COMPILE" \
-            menuconfig
-        ;;
-    rebuild)
-        rm -rf "$OUT"
-        configure
-        build
-        ;;
-    build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
-        configure
-        build
-        ;;
-    *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
-        exit 2
-        ;;
-esac
-
-if [ -f "$OUT/u-boot.bin" ]; then
-    [ -x "$OUT/tools/mkenvimage" ] || {
-        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
-        exit 1
-    }
-
-    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
-
-    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
-        echo
-        ccache -s | sed -n '1,12p'
-    fi
-fi
- "$CFG" ||
-        { echo "error: production environment erase size changed" >&2; exit 1; }
-    grep -q '^CONFIG_ENV_SIZE=0x4000
-    check_nextgen_flash_layout
-    make -C "$ROOT" O="$OUT" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE" \
-        "$DEFCONFIG"
-
-    if [ "$PROFILE" = "fast" ]; then
-        check_fast_config
-    fi
-}
-
-build()
-{
-    make -C "$ROOT" O="$OUT" -j"$JOBS" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE"
-}
-
-case "$ACTION" in
-    clean)
-        rm -rf "$OUT"
-        ;;
-    config)
-        configure
-        ;;
-    menuconfig)
-        configure
-        make -C "$ROOT" O="$OUT" \
-            ARCH="$ARCH" \
-            CROSS_COMPILE="$CROSS_COMPILE" \
-            menuconfig
-        ;;
-    rebuild)
-        rm -rf "$OUT"
-        configure
-        build
-        ;;
-    build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
-        configure
-        build
-        ;;
-    *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
-        exit 2
-        ;;
-esac
-
-if [ -f "$OUT/u-boot.bin" ]; then
-    [ -x "$OUT/tools/mkenvimage" ] || {
-        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
-        exit 1
-    }
-
-    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
-
-    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
-        echo
-        ccache -s | sed -n '1,12p'
-    fi
-fi
- "$CFG" ||
-        { echo "error: production environment payload size changed" >&2; exit 1; }
-    grep -q '^CONFIG_ENV_SPI_BUS=1
-    check_nextgen_flash_layout
-    make -C "$ROOT" O="$OUT" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE" \
-        "$DEFCONFIG"
-
-    if [ "$PROFILE" = "fast" ]; then
-        check_fast_config
-    fi
-}
-
-build()
-{
-    make -C "$ROOT" O="$OUT" -j"$JOBS" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE"
-}
-
-case "$ACTION" in
-    clean)
-        rm -rf "$OUT"
-        ;;
-    config)
-        configure
-        ;;
-    menuconfig)
-        configure
-        make -C "$ROOT" O="$OUT" \
-            ARCH="$ARCH" \
-            CROSS_COMPILE="$CROSS_COMPILE" \
-            menuconfig
-        ;;
-    rebuild)
-        rm -rf "$OUT"
-        configure
-        build
-        ;;
-    build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
-        configure
-        build
-        ;;
-    *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
-        exit 2
-        ;;
-esac
-
-if [ -f "$OUT/u-boot.bin" ]; then
-    [ -x "$OUT/tools/mkenvimage" ] || {
-        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
-        exit 1
-    }
-
-    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
-
-    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
-        echo
-        ccache -s | sed -n '1,12p'
-    fi
-fi
- "$CFG" ||
-        { echo "error: production environment SPI bus changed" >&2; exit 1; }
-    grep -q '^CONFIG_ENV_SPI_CS=0
-    check_nextgen_flash_layout
-    make -C "$ROOT" O="$OUT" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE" \
-        "$DEFCONFIG"
-
-    if [ "$PROFILE" = "fast" ]; then
-        check_fast_config
-    fi
-}
-
-build()
-{
-    make -C "$ROOT" O="$OUT" -j"$JOBS" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE"
-}
-
-case "$ACTION" in
-    clean)
-        rm -rf "$OUT"
-        ;;
-    config)
-        configure
-        ;;
-    menuconfig)
-        configure
-        make -C "$ROOT" O="$OUT" \
-            ARCH="$ARCH" \
-            CROSS_COMPILE="$CROSS_COMPILE" \
-            menuconfig
-        ;;
-    rebuild)
-        rm -rf "$OUT"
-        configure
-        build
-        ;;
-    build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
-        configure
-        build
-        ;;
-    *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
-        exit 2
-        ;;
-esac
-
-if [ -f "$OUT/u-boot.bin" ]; then
-    [ -x "$OUT/tools/mkenvimage" ] || {
-        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
-        exit 1
-    }
-
-    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
-
-    echo
-    echo "U-Boot build complete"
-    echo "  PROFILE       = $PROFILE"
-    echo "  DEFCONFIG     = $DEFCONFIG"
-    echo "  ARCH          = $ARCH"
-    echo "  CROSS_COMPILE = $CROSS_COMPILE"
-    echo "  OUTPUT        = $OUT/u-boot.bin"
-    echo "  MKENVIMAGE    = $OUT/tools/mkenvimage"
-    ls -lh "$OUT/u-boot.bin" "$OUT/tools/mkenvimage"
-
-    if command -v ccache >/dev/null 2>&1 && [ "${UBOOT_CCACHE:-1}" = "1" ]; then
-        echo
-        ccache -s | sed -n '1,12p'
-    fi
-fi
- "$CFG" ||
-        { echo "error: production environment SPI chip-select changed" >&2; exit 1; }
-}
-
-configure()
-{
-    check_nextgen_flash_layout
-    make -C "$ROOT" O="$OUT" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE" \
-        "$DEFCONFIG"
-
-    if [ "$PROFILE" = "fast" ]; then
-        check_fast_config
-    fi
-}
-
-build()
-{
-    make -C "$ROOT" O="$OUT" -j"$JOBS" \
-        ARCH="$ARCH" \
-        CROSS_COMPILE="$CROSS_COMPILE"
-}
-
-case "$ACTION" in
-    clean)
-        rm -rf "$OUT"
-        ;;
-    config)
-        configure
-        ;;
-    menuconfig)
-        configure
-        make -C "$ROOT" O="$OUT" \
-            ARCH="$ARCH" \
-            CROSS_COMPILE="$CROSS_COMPILE" \
-            menuconfig
-        ;;
-    rebuild)
-        rm -rf "$OUT"
-        configure
-        build
-        ;;
-    build)
-        # Always refresh from the branch defconfig. This prevents stale
-        # build-fast/.config files from retaining options removed by fast-boot
-        # work or missing options added by later fixes.
-        configure
-        build
-        ;;
-    *)
-        echo "Usage: $0 [build|rebuild|config|menuconfig|clean] [fast|diag]" >&2
-        exit 2
-        ;;
-esac
-
-if [ -f "$OUT/u-boot.bin" ]; then
-    [ -x "$OUT/tools/mkenvimage" ] || {
-        echo "error: U-Boot host tool missing: $OUT/tools/mkenvimage" >&2
-        exit 1
-    }
-
-    UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
-    [ "$UBOOT_BYTES" -le $((0x138000)) ] || {
-        echo "error: u-boot.bin overlaps the NOR environment partition: $UBOOT_BYTES bytes" >&2
-        exit 1
-    }
 
     echo
     echo "U-Boot build complete"
