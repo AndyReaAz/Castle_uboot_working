@@ -20,14 +20,15 @@ config VIDEO
 	  than this happening with every chunk of output. This allows for more
 	  efficient operation and faster display output.
 
-if VIDEO
-
 config VIDEO_ST7789_SPI
 	bool "ST7789V SPI RGB init-only driver"
-	depends on DM_SPI && DM_GPIO && MISC
+	depends on DM_SPI && DM_GPIO
 	help
 	  Initialise ST7789V over SPI for RGB/DPI panels.
-	  Pixels are driven separately by HLCDC.
+	  This helper only sends panel-control commands; it does not require
+	  U-Boot's video/framebuffer stack. Pixels are driven separately by HLCDC.
+
+if VIDEO
 
 config VIDEO_FONT_4X6
 	bool "4 x 6 font size"
