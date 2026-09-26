@@ -46,6 +46,7 @@ obj-$(CONFIG_$(PHASE_)NVME) += nvme/
 obj-$(CONFIG_XEN) += xen/
 obj-$(CONFIG_$(PHASE_)FPGA) += fpga/
 obj-$(CONFIG_$(PHASE_)VIDEO) += video/
+obj-$(CONFIG_VIDEO_ST7789_SPI) += video/st7789_spi.o
 
 obj-y += bus/
 
