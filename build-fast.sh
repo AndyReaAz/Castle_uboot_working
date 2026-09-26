@@ -176,6 +176,7 @@ check_flash_config()
         CONFIG_ENV_IS_IN_SPI_FLASH \
         CONFIG_ENV_REDUNDANT \
         CONFIG_ATMEL_QSPI \
+        CONFIG_VIDEO_ST7789_SPI \
         CONFIG_HUSH_PARSER
     do
         grep -q "^$opt=y$" "$CFG" || {
