@@ -74,12 +74,14 @@ void board_debug_uart_init(void)
 
 int board_init(void)
 {
+#ifdef CONFIG_SD_BOOT
 	/*
-	 * PC28 is the LCD backlight control.  Keep it hard-off throughout
-	 * U-Boot regardless of GPIO-hog probe timing; Linux remuxes the pin to
-	 * LCDPWM when its display/backlight driver takes ownership.
+	 * PC28 is the LCD backlight control.  Keep it hard-off throughout the
+	 * SD U-Boot path regardless of GPIO-hog probe timing; Linux remuxes the
+	 * pin to LCDPWM when its display/backlight driver takes ownership.
 	 */
 	atmel_pio4_set_pio_output(AT91_PIO_PORTC, 28, 0);
+#endif
 
 	/* address of boot parameters */
 	gd->bd->bi_boot_params = gd->bd->bi_dram[0].start + 0x100;
