@@ -28,7 +28,6 @@ obj-$(CONFIG_VIDEO_LOGO) += u_boot_logo.bmp.o
 obj-$(CONFIG_$(PHASE_)BMP) += bmp.o
 
 endif
-obj-$(CONFIG_VIDEO_ST7789_SPI) += st7789_spi.o
 
 obj-$(CONFIG_BACKLIGHT_AAT2870) += aat2870_backlight.o
 obj-$(CONFIG_BACKLIGHT_LM3532) += lm3532_backlight.o
