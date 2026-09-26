@@ -270,9 +270,11 @@ if [ -f "$OUT/u-boot.bin" ]; then
 
     UBOOT_BYTES="$(wc -c < "$OUT/u-boot.bin")"
     if [ "$PROFILE" = "flash" ]; then
-        # Keep the new U-Boot inside the old bootstrap's fixed 640 KiB read
-        # window so power loss before bootstrap replacement remains bootable.
-        UBOOT_MAX=$((0x0a0000))
+        # The new trailer-aware AT91Bootstrap can load any payload that fits
+        # before the 16-byte trailer at 0x13fff0. The separate production
+        # provisioner retains its 640 KiB transition cap while meters may
+        # still start with the old fixed-window bootstrap.
+        UBOOT_MAX=$((0x137ff0))
     else
         UBOOT_MAX=$((0x138000))
     fi
